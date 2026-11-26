@@ -1,0 +1,97 @@
+# Publishes a PhotoCraft release on mclsrr/photocraft that the Design System launcher installs and
+# updates from.
+#
+# How to release: raise [workspace.package] version in Cargo.toml, commit, then push a tag that
+# matches it:   git tag v0.23.2   git push origin v0.23.2
+# (or run this workflow by hand from the Actions tab, which tags the version in Cargo.toml).
+#
+# The release carries what the launcher looks for, plus the easy installer:
+#   photocraft-<version>-windows-x64.msi           installed and updated by Design System
+#   photocraft-<version>-windows-x64-portable.zip  no-install copy
+#   Setup_PhotoCraft.exe                            Inno Setup installer for people without the launcher
+#   SHA256SUMS.txt                                  checksums the launcher verifies downloads against
+#
+# Nothing is code-signed (no certificate secrets): Windows SmartScreen may warn the first time.
+
+name: Release (Windows)
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the version
+        id: version
+        shell: pwsh
+        run: |
+          $inPkg = $false
+          foreach ($line in Get-Content Cargo.toml) {
+            if ($line -match '^\s*\[') { $inPkg = ($line.Trim() -eq '[workspace.package]'); continue }
+            if ($inPkg -and $line -match '^\s*version\s*=\s*"([^"]+)"') { $version = $Matches[1]; break }
+          }
+          if (-not $version) { throw 'no [workspace.package] version in Cargo.toml' }
+          $tag = "v$version"
+          if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -ne $tag) {
+            throw "tag ${{ github.ref_name }} does not match Cargo.toml version $version (expected $tag)"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        shell: pwsh
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: WiX v5 and Inno Setup
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2 WixToolset.Util.wixext/5.0.2
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+
+      - name: Build and package (MSI and portable zip)
+        shell: pwsh
+        env:
+          DIST: ${{ github.workspace }}\dist\release
+        run: pwsh packaging/windows/package.ps1 -Arch x64
+
+      - name: Inno Setup installer
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build_installer.ps1 -SkipBuild
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem dist\release -File | Where-Object { $_.Name -match '\.(msi|zip)$' -and $_.Name -notmatch 'symbols' })
+          $files += Get-Item dist\Setup_PhotoCraft.exe
+          New-Item -ItemType Directory -Force upload | Out-Null
+          $files | Copy-Item -Destination upload
+          $sums = Get-ChildItem upload -File | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name }
+          [IO.File]::WriteAllText("$PWD\upload\SHA256SUMS.txt", ($sums -join "`n") + "`n")
+          Get-ChildItem upload | Format-Table Name, Length
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag (Get-ChildItem upload -File).FullName --clobber
+          } else {
+            gh release create $tag (Get-ChildItem upload -File).FullName --title "PhotoCraft ${{ steps.version.outputs.version }}" --generate-notes --target $env:GITHUB_SHA
+          }

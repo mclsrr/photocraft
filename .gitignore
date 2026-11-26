@@ -1,0 +1,23 @@
+*~
+/plan/
+/target
+target/
+/dist
+/corpus
+/log
+/secrets
+/temp
+/book/output
+/craft-fonts
+*.log
+__pycache__/
+
+# Checked out inside the workspace by the shared nightly workflows (craft-common-actions).
+/.nightly-tools
+/.nightly-input
+/craft-i18n
+
+# Local outputs of build_installer.ps1 (releases are built by .github/workflows/release-windows.yml).
+/setup
+# Third-party logos supplied for reference only: never published.
+/iconos
