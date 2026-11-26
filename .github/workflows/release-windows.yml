@@ -51,6 +51,19 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
 
+      - name: Interface translations (craft-i18n, at the commit craft-i18n.rev pins)
+        id: i18n
+        shell: pwsh
+        run: |
+          "rev=$((Get-Content craft-i18n.rev -Raw).Trim())" >> $env:GITHUB_OUTPUT
+
+      - name: Check out craft-i18n
+        uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-i18n
+          ref: ${{ steps.i18n.outputs.rev }}
+          path: craft-i18n
+
       - name: Rust toolchain (rust-toolchain.toml)
         shell: pwsh
         run: rustup show active-toolchain || rustup toolchain install
@@ -66,7 +79,11 @@ jobs:
         shell: pwsh
         env:
           DIST: ${{ github.workspace }}\dist\release
-        run: pwsh packaging/windows/package.ps1 -Arch x64
+        run: |
+          # Without the catalogs the interface is English only.
+          $env:CRAFT_I18N_DIR = (Resolve-Path craft-i18n).Path
+          $env:CRAFT_I18N_REQUIRED = '1'
+          pwsh packaging/windows/package.ps1 -Arch x64
 
       - name: Inno Setup installer
         shell: pwsh

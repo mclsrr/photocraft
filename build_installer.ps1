@@ -95,6 +95,18 @@ if (-not $SkipBuild) {
     Step 'Generando iconos'
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'recursos\generar_iconos.ps1')
   }
+  # Interface translations (storytold/craft-i18n at the commit craft-i18n.rev pins): without them
+  # the build is English only. Kept in Documents\Design System\bibliotecas\craft-i18n.
+  if (-not $env:CRAFT_I18N_DIR -and (Get-Command git -ErrorAction SilentlyContinue)) {
+    $rev = (Get-Content (Join-Path $Root 'craft-i18n.rev') -Raw).Trim()
+    $i18n = Join-Path (Split-Path (Split-Path $Root -Parent) -Parent) 'bibliotecas\craft-i18n'
+    Step "Traducciones craft-i18n ($($rev.Substring(0, 8)))"
+    if (-not (Test-Path (Join-Path $i18n '.git'))) { git clone -q https://github.com/storytold/craft-i18n $i18n }
+    git -C $i18n fetch -q origin $rev
+    git -C $i18n checkout -q $rev
+    if ($LASTEXITCODE -eq 0) { $env:CRAFT_I18N_DIR = (Resolve-Path $i18n).Path; $env:CRAFT_I18N_REQUIRED = '1' }
+    else { Write-Warning 'No se pudieron preparar las traducciones: el build saldrá solo en inglés.' }
+  }
   Step "cargo build --release ($Target)"
   $env:PHOTOCRAFT_BUILD_CHANNEL = 'stable'
   $env:PHOTOCRAFT_REQUIRE_WINRES = '1'
