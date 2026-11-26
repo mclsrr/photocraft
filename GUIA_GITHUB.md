@@ -1,3 +1,5 @@
+> Resumen y atajo: `Documentos\Design System\LEEME.md` y `publicar_version.ps1` (publica una versión con un comando). Los repositorios ya están creados; los pasos 1 a 4 quedan como referencia.
+
 # Guía: tus apps en GitHub y el launcher Design System
 
 Cómo funciona, en una frase: **cada app vive en su propio repositorio de GitHub**
@@ -17,8 +19,8 @@ Carpetas en tu PC:
 
 | Carpeta | Repositorio |
 |---|---|
-| `Downloads\photocraft-main` | `mclsrr/photocraft` |
-| `Downloads\design-system` | `mclsrr/design-system` (el launcher) |
+| `Documentos\Design System\apps\photocraft` | `mclsrr/photocraft` |
+| `Documentos\Design System\launcher` | `mclsrr/design-system` (el launcher) |
 
 Los dos repositorios deben ser **públicos**: el launcher descarga las releases sin iniciar sesión.
 
@@ -50,7 +52,7 @@ git config --global user.email "TU_CORREO_DE_GITHUB"
 ## 2. Subir PhotoCraft (una vez)
 
 ```powershell
-cd $HOME\Downloads\photocraft-main
+cd "$HOME\Documents\Design System\apps\photocraft"
 ```
 ```powershell
 git init -b main; git add -A; git commit -m "PhotoCraft (mclsrr): ventana flotante, lápiz, instalador"
@@ -85,7 +87,7 @@ terminar, en **Releases** estarán `photocraft-0.23.1-windows-x64.msi`, el `.zip
 ## 4. Subir y publicar el launcher (una vez)
 
 ```powershell
-cd $HOME\Downloads\design-system
+cd "$HOME\Documents\Design System\launcher"
 ```
 ```powershell
 git init -b main; git add -A; git commit -m "Design System: launcher de mclsrr"
@@ -109,7 +111,7 @@ Design System, y en él aparece PhotoCraft con su botón **Instalar**.
 
 ## 5. Actualizar una app (lo de siempre)
 
-1. Cambia el código en `photocraft-main`.
+1. Cambia el código en `Documentos\Design System\apps\photocraft`.
 2. Sube la versión en `Cargo.toml` (`0.23.1` → `0.23.2`).
 3. Publica:
    ```powershell
@@ -134,8 +136,8 @@ Las apps de ArtCraft (VectorCraft, FilmCraft, DesignCraft, WordCraft…) tienen 
 que PhotoCraft, así que el proceso es igual:
 
 1. **Código.** Descarga la app (por ejemplo `https://github.com/storytold/vectorcraft` › *Code* ›
-   *Download ZIP*), descomprímela en `Downloads\vectorcraft` y haz tus cambios.
-2. **Workflow.** Copia `photocraft-main\.github\workflows\release-windows.yml` a
+   *Download ZIP*), descomprímela en `Documentos\Design System\apps\vectorcraft` y haz tus cambios.
+2. **Workflow.** Copia `apps\pdfcraft\.github\workflows\release-windows.yml` a
    `vectorcraft\.github\workflows\` y cambia `Setup_PhotoCraft.exe`/`build_installer.ps1` por lo
    que tenga esa app. Si no quieres un instalador suelto, borra el paso *Inno Setup installer* y la
    línea `$files += Get-Item dist\Setup_PhotoCraft.exe`: el launcher solo necesita el `.msi` y
@@ -161,5 +163,5 @@ en el catálogo.
   secretos.
 - **Límite de GitHub.** Sin iniciar sesión, GitHub permite unas 60 consultas por hora y por red.
   El launcher lo tiene en cuenta (usa rutas que no gastan cuota y espera si hace falta).
-- **Probar antes de publicar.** `build_installer.ps1` (en `photocraft-main`) compila y genera
+- **Probar antes de publicar.** `build_installer.ps1` (en `apps\photocraft`) compila y genera
   `Setup_PhotoCraft.exe` en tu PC sin tocar GitHub.

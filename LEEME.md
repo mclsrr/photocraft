@@ -1,10 +1,10 @@
 # PhotoCraft: compilación, instalador y cambios locales
 
 Esta copia de PhotoCraft (editor de imágenes en Rust, de ArtCraft) lleva cuatro cambios locales y
-un instalador de Windows. La copia original está en `..\_backup_original`.
+un instalador de Windows. La copia original está en `Documentos\Design System\respaldos\photocraft-original`.
 
 Para publicar en GitHub (`mclsrr/photocraft`) y usar el launcher **Design System**
-(`..\design-system`, repositorio `mclsrr/design-system`), sigue [GUIA_GITHUB.md](GUIA_GITHUB.md).
+(`Documentos\Design System\launcher`, repositorio `mclsrr/design-system`), sigue [GUIA_GITHUB.md](GUIA_GITHUB.md).
 
 ## Instalar (usuario final)
 
