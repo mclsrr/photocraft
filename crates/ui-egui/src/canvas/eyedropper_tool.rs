@@ -37,6 +37,8 @@ pub(crate) struct EyedropperState {
     ring: Option<Ring>,
     /// The swatch colour the running gesture's first pick replaced: the ring's lower half.
     before: Option<Srgba>,
+    /// The document pixel the gesture last sampled: a drag that stays on it samples nothing again.
+    last_pixel: Option<(i64, i64)>,
 }
 
 /// The sampling ring's state: where it is and its two colours.
@@ -137,6 +139,16 @@ impl<'a> PcEyedropper<'a> {
         Some(self.scope.with_app(|app| {
             let [r, g, b, _] = if key == "background" { app.session.tools.background } else { app.session.tools.foreground };
             let replaced = Srgba::rgb(r, g, b);
+            // A held eyedropper samples on every pass, mostly the colour the swatch already has (the
+            // pointer still, or a pen trembling over one colour). Setting that same colour again ran
+            // the command and refreshed every colour panel each frame, which made a long hold lag;
+            // an unchanged pick now changes nothing.
+            let role = usize::from(key == "background");
+            let same_inks = inks.is_none_or(|inks| app.session.tools.picked_role_cmyk(role) == Some(inks));
+            let fill_set = !shape_fill || (app.ui.tool_options.shape_fill && app.ui.tool_options.shape_fill_gradient.is_none());
+            if [c.r, c.g, c.b] == [r, g, b] && same_inks && fill_set {
+                return (c, replaced);
+            }
             let mut params = json!({ key: [c.r, c.g, c.b, 1.0] });
             if let Some(inks) = inks {
                 params[format!("{key}Cmyk")] = json!(inks);
@@ -186,6 +198,12 @@ impl<'a> PcEyedropper<'a> {
     }
 }
 
+/// The document pixel under `pointer`, or `None` without a canvas space.
+fn pixel_at(pointer: &ToolPointer, cx: &ToolContext<'_>) -> Option<(i64, i64)> {
+    let p = cx.space()?.view.to_doc(pointer.pos);
+    (p.x.is_finite() && p.y.is_finite()).then(|| (p.x.floor() as i64, p.y.floor() as i64))
+}
+
 /// The points of the arc of `radius` from angle `from` to `to` around `center`.
 fn arc(center: egui::Pos2, radius: f32, from: f32, to: f32) -> Vec<egui::Pos2> {
     (0..=RING_SEGMENTS)
@@ -233,11 +251,13 @@ impl CanvasTool for PcEyedropper<'_> {
         self.state.sampler_added = false;
         self.state.ring = None;
         self.state.before = None;
+        self.state.last_pixel = None;
         if self.shift_adds_samplers() && pointer.mods.shift && self.add_sampler(pointer, cx) {
             self.state.sampler_added = true;
             return ToolAction::Claimed;
         }
         let action = self.inner.press(pointer, cx);
+        self.state.last_pixel = pixel_at(pointer, cx);
         let picked = self.apply();
         self.track_ring(pointer, picked);
         action
@@ -248,6 +268,17 @@ impl CanvasTool for PcEyedropper<'_> {
         if self.state.sampler_added || (self.shift_adds_samplers() && pointer.mods.shift) {
             return;
         }
+        // A move that stays on the pixel last sampled reads the same colour: only the ring follows the
+        // pointer. Each sample composites the layers under the point, which on a large document is
+        // the cost a long hold kept paying on every pass.
+        let pixel = pixel_at(pointer, cx);
+        if pixel.is_some() && pixel == self.state.last_pixel {
+            if let Some(ring) = self.state.ring.as_mut() {
+                ring.at = pointer.pos;
+            }
+            return;
+        }
+        self.state.last_pixel = pixel;
         self.inner.drag(pointer, cx);
         let picked = self.apply();
         self.track_ring(pointer, picked);
@@ -257,6 +288,7 @@ impl CanvasTool for PcEyedropper<'_> {
         self.state.sampler_added = false;
         self.state.ring = None;
         self.state.before = None;
+        self.state.last_pixel = None;
         self.inner.release(pointer, cx);
     }
 
@@ -264,6 +296,7 @@ impl CanvasTool for PcEyedropper<'_> {
         self.state.sampler_added = false;
         self.state.ring = None;
         self.state.before = None;
+        self.state.last_pixel = None;
         self.inner.cancel(reason, cx);
     }
 
