@@ -450,7 +450,9 @@ pub(crate) fn log_input(raw_input: &egui::RawInput) {
         .events
         .iter()
         .filter_map(|e| match e {
-            egui::Event::PointerButton { pos, button, pressed, .. } => Some(format!("ui PointerButton {button:?} pressed={pressed} at=({:.0},{:.0})", pos.x, pos.y)),
+            egui::Event::PointerButton { pos, button, pressed, .. } => {
+                Some(format!("ui PointerButton {button:?} pressed={pressed} at=({:.0},{:.0})", pos.x, pos.y))
+            }
             egui::Event::Touch { id, phase, force, .. } if *phase != egui::TouchPhase::Move => Some(format!("ui Touch id={} {phase:?} force={force:?}", id.0)),
             egui::Event::PointerGone => Some("ui PointerGone".to_owned()),
             _ => None,

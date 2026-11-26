@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use craft::behavior::PressPhase;
 use craft::behavior::dock::Arrangement;
 use craft::ui::bars::{Bar, BarKind};
-use craft::ui::canvas::{SplitAt, SplitViews};
+use craft::ui::canvas::{PanePress, SplitAt, SplitViews};
 use craft::ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft::ui::display::{Elide, Text};
 use craft::ui::docking::Arranged;
@@ -193,55 +193,77 @@ fn document(app: &mut PhotocraftApp, ui: &mut egui::Ui, rect: Rect) {
     if arranged(app, ui, rect, active) {
         return;
     }
-    let view = app.ui.views[idx].clone();
-    let primary = app.session.active_index() == Some(idx);
-    // While the active document floats, a press on the main canvas activates the document it shows: the canvas
-    // output reports the press, the app activates (as `SplitViews` reports `activated`).
-    let (_, output) = canvas_view(app, ui, CanvasHost::main(idx), rect, view, primary);
-    if idx != active && matches!(output.press.phase, PressPhase::Down { .. }) {
+    // While the active document floats, a press on the main canvas activates the document it shows, before the
+    // canvas runs, so the press also reaches its tool: a stroke there paints from its first press.
+    if idx != active && !app.dialog_open() && press_on_layer(ui).is_some_and(|at| rect.contains(at)) {
         app.session.set_active(idx);
     }
+    let view = app.ui.views[idx].clone();
+    let primary = app.session.active_index() == Some(idx);
+    let (_, output) = canvas_view(app, ui, CanvasHost::main(idx), rect, view, primary);
+    if app.session.active_index() != Some(idx) && matches!(output.press.phase, PressPhase::Down { .. }) {
+        app.session.set_active(idx);
+    }
+}
+
+/// Where this pass's primary press landed, when it landed on `ui`'s own layer: a press on a menu, a popup or a dialog
+/// over the canvas is theirs, not a canvas's.
+pub(super) fn press_on_layer(ui: &egui::Ui) -> Option<egui::Pos2> {
+    let at = ui.input(|i| if i.pointer.primary_pressed() { i.pointer.press_origin() } else { None })?;
+    (ui.ctx().layer_id_at(at) == Some(ui.layer_id())).then_some(at)
 }
 
 /// Window › Arrange's n-up or Tile arrangement: a canvas per pane in `SplitViews`. The active document is the active pane;
 /// a press on another pane activates its document, and a divider drag moves the panes. Returns false when no
 /// arrangement shows.
-fn arranged(app: &mut PhotocraftApp, ui: &mut egui::Ui, rect: Rect, active: usize) -> bool {
+fn arranged(app: &mut PhotocraftApp, ui: &mut egui::Ui, rect: Rect, mut active: usize) -> bool {
     let Some(layout) = app.ui.document_windows.arrangement else { return false };
     // The active document shows in its group's pane, whichever tab chose it.
-    let active_id = app.session.documents()[active].doc.id;
+    let mut active_id = app.session.documents()[active].doc.id;
     for group in &mut app.ui.document_windows.docked {
         if group.documents.contains(&active_id) {
             group.shown = Some(active_id);
         }
     }
     let Some(panes) = arranged_panes(app, rect) else { return false };
+    // A press on another pane activates its document before the panes are drawn, so that pane is the active one this
+    // pass and the press reaches its tool too: a colour picked in one file paints straight onto the other from the
+    // first press. Left to `SplitViews`, the first press only selected the pane and the stroke began at the second.
+    if !app.dialog_open()
+        && let Some(at) = press_on_layer(ui)
+        && let Some(&(d, _)) = panes.iter().find(|(d, pane)| *d != active && pane.contains(at))
+    {
+        app.session.set_active(d);
+        active = d;
+        active_id = app.session.documents()[d].doc.id;
+    }
     let heights = (layout == Arrangement::Tile).then(|| tile_bar_heights(app));
     let count = app.ui.document_windows.docked.len();
     let active_pane = app.ui.document_windows.docked.iter().position(|group| group.shown == Some(active_id)).unwrap_or(0);
     let shown: Vec<Option<usize>> = app.ui.document_windows.docked.iter().map(|group| group.shown.and_then(|id| document_index(app, id))).collect();
     // The panes are laid out from the dividers as this pass starts; an edit of them lands after the pass.
     let mut at = app.ui.split_at.clone();
-    let out = SplitViews::new(tl!("Documents"), layout, Bind::bound(&mut at)).count(count).active(active_pane).show(ui, |ui, _| {
-        for &(d, pane) in &panes {
-            let view = app.ui.views[d].clone();
-            let tile = heights.map(|heights| TilePane::new(pane, heights));
-            let canvas = tile.as_ref().map_or(pane, |tile| tile.canvas);
-            let (v, _) = canvas_view(app, ui, CanvasHost::main(d), canvas, view, d == active);
-            if let Some(tile) = &tile
-                && tile.status.height() > 0.0
-            {
-                let id = app.session.documents()[d].doc.id;
-                let zoom = format!("{}%", super::fmt_zoom(v.zoom * 100.0));
-                Bar::new("", BarKind::Status).id_salt(("tile-status", id)).show_at(ui, tile.status, |ui, _| {
-                    Text::new(zoom.clone()).elide(Elide::End).show(ui);
-                });
+    let out =
+        SplitViews::new(tl!("Documents"), layout, Bind::bound(&mut at)).count(count).active(active_pane).pane_press(PanePress::Interact).show(ui, |ui, _| {
+            for &(d, pane) in &panes {
+                let view = app.ui.views[d].clone();
+                let tile = heights.map(|heights| TilePane::new(pane, heights));
+                let canvas = tile.as_ref().map_or(pane, |tile| tile.canvas);
+                let (v, _) = canvas_view(app, ui, CanvasHost::main(d), canvas, view, d == active);
+                if let Some(tile) = &tile
+                    && tile.status.height() > 0.0
+                {
+                    let id = app.session.documents()[d].doc.id;
+                    let zoom = format!("{}%", super::fmt_zoom(v.zoom * 100.0));
+                    Bar::new("", BarKind::Status).id_salt(("tile-status", id)).show_at(ui, tile.status, |ui, _| {
+                        Text::new(zoom.clone()).elide(Elide::End).show(ui);
+                    });
+                }
+                if d != active {
+                    app.ui.views[d] = v;
+                }
             }
-            if d != active {
-                app.ui.views[d] = v;
-            }
-        }
-    });
+        });
     app.ui.split_at = at;
     let mut selected = out.output.activated.and_then(|pane| shown.get(pane).copied().flatten());
     let mut closing = Vec::new();

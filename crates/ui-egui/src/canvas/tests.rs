@@ -1190,3 +1190,52 @@ mod gpu_tests {
         assert_eq!(texture_key(canvas_display(&app, &doc, Some(1)).0.as_deref(), &doc), texture_key(canvas_display(&app, &doc, Some(4)).0.as_deref(), &doc));
     }
 }
+
+/// Two files side by side (Window › Arrange): a stroke on the other file's tile paints there from
+/// its first press, so a colour picked in one file goes straight onto the other. The first press on
+/// an inactive tile only activated its file, and the stroke started at the second press.
+#[test]
+fn a_stroke_on_the_other_tile_paints_from_its_first_press() {
+    use craft::behavior::PointerButton;
+    use craft::behavior::dock::{Arrangement, DocumentGroup};
+    use craft::behavior::kurbo::Point;
+    use craft::keymap::Mods;
+    use craft::ui::canvas::ToolHost;
+    use craft::ui::runtime::windows::{Released, WindowHost};
+    let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
+    app.background_jobs = false;
+    app.ui.extras.rulers = false;
+    for _ in 0..2 {
+        app.run("file.new", json!({"width": 64, "height": 64, "background": "white"})).unwrap();
+    }
+    app.run("tools.setColors", json!({"foreground": [1.0, 0.0, 0.0, 1.0]})).unwrap();
+    app.ui.tool = Tool::Brush;
+    app.sync_views();
+    let ids: Vec<_> = app.session.documents().iter().map(|st| st.doc.id).collect();
+    let group = |id: u64, doc| {
+        let mut g = DocumentGroup::new(id, vec![doc]);
+        g.shown = Some(doc);
+        g
+    };
+    app.ui.document_windows.docked = vec![group(0, ids[0]), group(1, ids[1])];
+    app.ui.document_windows.arrangement = Some(Arrangement::TwoUpVertical);
+    super::testing::frame(&mut app);
+    assert_eq!(app.session.active_index(), Some(1), "the second file is the active one");
+    let before = app.session.documents()[0].doc.clone();
+    let other = ToolHost::shown_space(app.ctx(), CanvasHost::main(0).canvas_id()).expect("the other tile shows").view;
+    let (a, b) = (other.to_screen(Point::new(10.0, 32.0)), other.to_screen(Point::new(50.0, 32.0)));
+    let host = WindowHost::of(app.ctx());
+    let frames = |app: &mut PhotocraftApp| {
+        for _ in 0..8 {
+            super::testing::frame(app);
+        }
+    };
+    host.inject_click(egui::ViewportId::ROOT, a, PointerButton::Primary, 1, Mods::NONE, true);
+    frames(&mut app);
+    host.inject_move(egui::ViewportId::ROOT, b, Mods::NONE, 0.0);
+    frames(&mut app);
+    host.inject_release(egui::ViewportId::ROOT, Some(b), Released::Button(PointerButton::Primary));
+    frames(&mut app);
+    assert_eq!(app.session.active_index(), Some(0), "the press activates the file it landed on");
+    assert_ne!(app.session.documents()[0].doc, before, "the first stroke on that file paints it");
+}

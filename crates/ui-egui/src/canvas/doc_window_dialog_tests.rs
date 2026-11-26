@@ -97,3 +97,40 @@ fn a_document_window_canvas_takes_no_tool_drag_under_a_dialog() {
     assert_eq!(history(app), before, "no History step under the dialog");
     assert_eq!(app.session.active().unwrap().revision, revision, "the document untouched");
 }
+
+/// Two files, one floating in its own window: a brush stroke in the floating window of the file
+/// that isn't active paints that file from its first press (a colour picked in one file goes
+/// straight onto the other), and makes it the active file.
+#[test]
+fn a_stroke_in_the_inactive_floating_file_paints_it_from_the_first_press() {
+    let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
+    app.background_jobs = false;
+    app.ui.extras.rulers = false;
+    for _ in 0..2 {
+        app.run("file.new", json!({"width": 200, "height": 150, "background": "white"})).unwrap();
+    }
+    app.run("tools.setColors", json!({"foreground": [1.0, 0.0, 0.0, 1.0]})).unwrap();
+    app.sync_views();
+    app.ui.tool = Tool::Brush;
+    let floating = app.session.documents()[0].doc.id;
+    assert!(app.ui.document_windows.float(&floating, window_rect()).is_some(), "the first file floats");
+    app.session.set_active(1);
+    let size = app.session.documents()[0].doc.size;
+    app.ui.views[0] = View { zoom: 1.0, center: [size.width as f32 / 2.0, size.height as f32 / 2.0], pending: Vec::new(), ..app.ui.views[0].clone() };
+    let before = app.session.documents()[0].doc.clone();
+    let mut h = Harness::builder().with_size(vec2(900.0, 700.0)).with_context(app.ctx().clone()).build_ui_state(
+        |ui, (app, ready): &mut (Box<PhotocraftApp>, bool)| {
+            if *ready {
+                extra_windows(app, ui);
+            }
+        },
+        (app, false),
+    );
+    PhotocraftApp::setup_context(&h.ctx, crate::theme::AppTheme::pro());
+    h.state_mut().1 = true;
+    h.run_steps(4);
+    drag_in_document_window(&mut h);
+    let app = &h.state().0;
+    assert_eq!(app.session.active_index(), Some(0), "the floating file is now the active one");
+    assert_ne!(app.session.documents()[0].doc, before, "the first stroke in its window painted it");
+}

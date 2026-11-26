@@ -59,10 +59,19 @@ fn pen_tap_clicks(barrel: bool, mouse_press: bool) -> (bool, bool) {
     let frames = if mouse_press {
         vec![(0.0, vec![]), (0.1, vec![egui::Event::PointerMoved(at), button(true)]), (0.2, vec![button(false)])]
     } else {
-        vec![(0.0, vec![]), (0.1, vec![touch(egui::TouchPhase::Start), egui::Event::PointerMoved(at), button(true)]), (0.2, vec![touch(egui::TouchPhase::End), button(false)])]
+        vec![
+            (0.0, vec![]),
+            (0.1, vec![touch(egui::TouchPhase::Start), egui::Event::PointerMoved(at), button(true)]),
+            (0.2, vec![touch(egui::TouchPhase::End), button(false)]),
+        ]
     };
     for (time, events) in frames {
-        let mut raw = egui::RawInput { time: Some(time), screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(200.0, 200.0))), events, ..Default::default() };
+        let mut raw = egui::RawInput {
+            time: Some(time),
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(200.0, 200.0))),
+            events,
+            ..Default::default()
+        };
         presses.rewrite(&mut raw.events, || barrel);
         let mut out = ctx.run_ui(raw, |ui| {
             let r = ui.allocate_rect(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(200.0, 200.0)), egui::Sense::click_and_drag());

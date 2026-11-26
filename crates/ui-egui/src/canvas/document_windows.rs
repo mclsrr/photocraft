@@ -108,6 +108,16 @@ pub fn extra_windows(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                 let ppp = ui.ctx().pixels_per_point();
                 view.set_from(&edited, ppp);
             }
+            // A press in the window of a file that isn't the active one activates it before its canvas runs, so the press
+            // also reaches the tool: a stroke there paints from its first press. Left to the OS focus change, the file
+            // became active only after this pass, and the first stroke went nowhere.
+            let focused = focused || {
+                let pressed = !app.dialog_open() && super::document_area::press_on_layer(ui).is_some();
+                if pressed {
+                    app.session.set_active(doc);
+                }
+                pressed
+            };
             // A second run of the body in one pass continues from the first run's view; the wrap rule
             // compares with the view the window started the pass with, so both runs file the same ask.
             let (after, canvas) = document_window_canvas(app, ui, id, doc, view.clone(), focused);
