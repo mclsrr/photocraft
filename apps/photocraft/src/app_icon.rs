@@ -155,13 +155,15 @@ mod tests {
     }
 
     #[test]
-    fn windows_and_linux_icons_keep_the_round_corners() {
-        // rx=112 of 512 leaves (10, 10) of a 256 px render transparent; the old crop filled it (#4478).
+    fn windows_and_linux_icons_preserve_the_master_transparency() {
         let png = include_bytes!("../../../assets/app-icon/hicolor/256x256/apps/ai.storyteller.photocraft.png");
         let icon = eframe::icon_data::from_png_bytes(png).unwrap();
         assert_eq!(icon.width, 256);
-        assert_eq!(icon.rgba[(10 * 256 + 10) * 4 + 3], 0, "corner is transparent");
-        assert_eq!(icon.rgba[(128 * 256 + 2) * 4 + 3], 255, "the tile is full bleed");
+        let master = include_bytes!("../../../assets/app-icon/hicolor/512x512/apps/ai.storyteller.photocraft.png");
+        let master = eframe::icon_data::from_png_bytes(master).unwrap();
+        for (x, y) in [(10, 10), (2, 128), (128, 128)] {
+            assert_eq!(icon.rgba[(y * 256 + x) * 4 + 3], master.rgba[(2 * y * 512 + 2 * x) * 4 + 3]);
+        }
     }
 
     /// The `.ico` build.rs embeds: every size Windows asks for, each a valid PNG or BMP image.

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   Genera los iconos de PhotoCraft para Windows (.ico multitamaño), Linux (.png) y macOS (.icns).
 
@@ -8,8 +8,7 @@
   Una imagen que no sea cuadrada se centra en un lienzo cuadrado transparente; una menor de 256 px
   se amplía. En ambos casos el script avisa.
 
-  Sin parámetros usa el arte propio del proyecto (assets/app-icon) y dibuja un icono de documento
-  .psd original con él. Los iconos de terceros (por ejemplo, logotipos de Adobe) no deben usarse.
+  Sin parámetros usa los originales PNG e ICO de Design System en assets/app-icon.
 
   Salida: recursos/iconos/ (no toca los originales).
 
@@ -29,6 +28,9 @@ Add-Type -AssemblyName PresentationCore, PresentationFramework, WindowsBase
 $Root = Split-Path -Parent $PSScriptRoot
 $Out = Join-Path $PSScriptRoot 'iconos'
 New-Item -ItemType Directory -Force $Out | Out-Null
+$useAppMaster = -not $IconoApp
+$useDocMaster = -not $IconoPsd
+if ($useDocMaster) { $IconoPsd = Join-Path $Root 'assets\app-icon\photocraft-document.png' }
 if (-not $IconoApp) { $IconoApp = Join-Path $Root 'assets\app-icon\hicolor\512x512\apps\ai.storyteller.photocraft.png' }
 
 function Get-RealFormat([string] $Path) {
@@ -122,50 +124,18 @@ function Write-Icns($Img, [string] $Path) {
   $bw.Close()
 }
 
-# Icono de documento .psd original: una hoja con la esquina doblada, el icono de la app y "PSD".
-function New-PsdDocumentIcon($AppImg) {
-  return New-Canvas 1024 {
-    param($dc, $s)
-    $paper = [Windows.Media.SolidColorBrush]::new([Windows.Media.Color]::FromRgb(0xF5, 0xF6, 0xF8))
-    $edge = [Windows.Media.Pen]::new([Windows.Media.SolidColorBrush]::new([Windows.Media.Color]::FromRgb(0x9A, 0xA3, 0xB0)), 18)
-    $fold = [Windows.Media.SolidColorBrush]::new([Windows.Media.Color]::FromRgb(0xD5, 0xDA, 0xE1))
-    $l = 150; $t = 40; $r = 874; $b = 984; $c = 220
-    $page = [Windows.Media.StreamGeometry]::new()
-    $g = $page.Open()
-    $g.BeginFigure([Windows.Point]::new($l, $t), $true, $true)
-    $g.LineTo([Windows.Point]::new($r - $c, $t), $true, $true)
-    $g.LineTo([Windows.Point]::new($r, $t + $c), $true, $true)
-    $g.LineTo([Windows.Point]::new($r, $b), $true, $true)
-    $g.LineTo([Windows.Point]::new($l, $b), $true, $true)
-    $g.Close()
-    $dc.DrawGeometry($paper, $edge, $page)
-    $corner = [Windows.Media.StreamGeometry]::new()
-    $g = $corner.Open()
-    $g.BeginFigure([Windows.Point]::new($r - $c, $t), $true, $true)
-    $g.LineTo([Windows.Point]::new($r - $c, $t + $c), $true, $true)
-    $g.LineTo([Windows.Point]::new($r, $t + $c), $true, $true)
-    $g.Close()
-    $dc.DrawGeometry($fold, $edge, $corner)
-    $dc.DrawImage($AppImg, [Windows.Rect]::new(262, 250, 500, 500))
-    $face = [Windows.Media.Typeface]::new([Windows.Media.FontFamily]::new('Segoe UI'), 'Normal', 'Bold', 'Normal')
-    $text = [Windows.Media.FormattedText]::new('PSD', [Globalization.CultureInfo]::InvariantCulture, 'LeftToRight', $face, 150,
-      [Windows.Media.SolidColorBrush]::new([Windows.Media.Color]::FromRgb(0x2B, 0x33, 0x40)), 1.0)
-    $dc.DrawText($text, [Windows.Point]::new(($s - $text.Width) / 2, 775))
-  }
-}
-
 $IcoSizes = 16, 24, 32, 48, 64, 128, 256
 Write-Host "Icono de la aplicación:"
 $app = ConvertTo-Square (Read-Image $IconoApp) 'ICONO_APP'
-Write-Ico $app (Join-Path $Out "$Nombre.ico") $IcoSizes
+if ($useAppMaster) { Copy-Item (Join-Path $Root 'assets\app-icon\photocraft.ico') (Join-Path $Out "$Nombre.ico") } else { Write-Ico $app (Join-Path $Out "$Nombre.ico") $IcoSizes }
 foreach ($s in 16, 24, 32, 48, 64, 128, 256, 512) {
   [IO.File]::WriteAllBytes((Join-Path $Out "$Nombre-$s.png"), (Get-PngBytes (Resize $app $s)))
 }
 Write-Icns $app (Join-Path $Out "$Nombre.icns")
 
 Write-Host "Icono de archivos .psd:"
-$psd = if ($IconoPsd) { ConvertTo-Square (Read-Image $IconoPsd) 'ICONO_PSD' } else { Write-Host '  (sin archivo: se dibuja un documento original con el icono de la app)'; New-PsdDocumentIcon $app }
-Write-Ico $psd (Join-Path $Out "$Nombre-PSD.ico") $IcoSizes
+$psd = ConvertTo-Square (Read-Image $IconoPsd) 'ICONO_PSD'
+if ($useDocMaster) { Copy-Item (Join-Path $Root 'assets\app-icon\photocraft-document.ico') (Join-Path $Out "$Nombre-PSD.ico") } else { Write-Ico $psd (Join-Path $Out "$Nombre-PSD.ico") $IcoSizes }
 [IO.File]::WriteAllBytes((Join-Path $Out "$Nombre-PSD-256.png"), (Get-PngBytes (Resize $psd 256)))
 
 Write-Host "Listo: $Out"

@@ -93,11 +93,7 @@ como un ratón y envía el clic derecho como un `WM_RBUTTONDOWN` normal, que ya 
 
 ### Tarea 3: iconos
 
-- Los archivos de `iconos\` (`Icono_App.webp`, 960×936, y `PSD_file_icon.webp`, 500×615) son WebP
-  no cuadrados y **son el logotipo "Ps" de Adobe Photoshop**. La propia tarea (y las reglas del
-  repositorio) prohíben usar logotipos o iconos de Adobe, así que **no se han usado**. Los iconos
-  generados salen del arte propio de PhotoCraft (`assets\app-icon`), y el de `.psd` es un documento
-  original dibujado por el script. Si tienes iconos propios, pásalos con `-IconoApp`/`-IconoPsd`.
+- Los originales de Design System están en `assets/app-icon`. El generador usa ambos ICO suministrados y deriva los tamaños de interfaz a partir de los PNG de aplicación y documento.
 - `recursos\iconos\PhotoCraft.ico` es el icono del `.exe` (`build_channel.rs`), de los accesos
   directos y del instalador; `PhotoCraft-256.png` es el de la ventana (`app_icon.rs`);
   `PhotoCraft-PSD.ico` es el de los `.psd` asociados (lo pone el instalador).

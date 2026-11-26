@@ -1,4 +1,4 @@
-﻿//! Windows only: embed the app icon and version info (VERSIONINFO) into `photocraft.exe`.
+//! Windows only: embed the app icon and version info (VERSIONINFO) into `photocraft.exe`.
 //!
 //! On every other target this does nothing. A missing resource compiler is a warning, so a
 //! cross-compile from macOS or Linux still links, unless `PHOTOCRAFT_REQUIRE_WINRES=1` (set by the
@@ -26,6 +26,7 @@ fn main() {
     };
     println!("cargo:rerun-if-changed=../../recursos/iconos/PhotoCraft.ico");
     println!("cargo:rerun-if-changed=../../assets/app-icon/photocraft-nightly.ico");
+    println!("cargo:rerun-if-changed=../../assets/app-icon/photocraft-document.ico");
     println!("cargo:rerun-if-env-changed=PHOTOCRAFT_REQUIRE_WINRES");
     println!("cargo:rerun-if-env-changed=PHOTOCRAFT_VERSION");
     let built_version = if nightly {
@@ -56,6 +57,7 @@ fn main() {
     }
     let mut res = winresource::WindowsResource::new();
     res.set_icon(build_channel::windows_icon_path(nightly))
+        .set_icon_with_id("../../assets/app-icon/photocraft-document.ico", "2")
         .set("ProductName", if nightly { "PhotoCraft Nightly" } else { "PhotoCraft" })
         .set("FileDescription", if nightly { "PhotoCraft Nightly image editor" } else { "PhotoCraft image editor" })
         .set("CompanyName", "Learning Machines LLC")

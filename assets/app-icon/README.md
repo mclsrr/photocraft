@@ -1,3 +1,5 @@
+Windows artwork is supplied by Design System in Iconos-Design-System.zip. The stable ICO and the 512 px hicolor PNG are master files. The document pair comes from documentos/psd. Regenerating smaller hicolor PNGs with packaging/icons.sh requires ImageMagick 7.
+
 # PhotoCraft app icon
 
 A **nine-tailed kitsune with a brow diamond**: an engraving portrait, seated, looking back at the
