@@ -32,7 +32,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Read the version
         id: version
@@ -58,7 +58,7 @@ jobs:
           "rev=$((Get-Content craft-i18n.rev -Raw).Trim())" >> $env:GITHUB_OUTPUT
 
       - name: Check out craft-i18n
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: storytold/craft-i18n
           ref: ${{ steps.i18n.outputs.rev }}
